@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "woodpecker-status",
   "name": "Woodpecker Status",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step.",
   "engines": {
     "orca": ">=1.4.248"
@@ -56,6 +56,27 @@
     },
     {
       "kind": "notifications:show"
+    }
+  ],
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "The Woodpecker Status panel in Orca's sidebar, showing one failed project with its steps and log, and several passing projects"
+  },
+  "screenshots": [
+    {
+      "path": "assets/screenshot-overview.png",
+      "alt": "Project list with colored status dots, failed projects first",
+      "caption": "All projects at a glance"
+    },
+    {
+      "path": "assets/screenshot-details.png",
+      "alt": "A failed project expanded with its steps and the log of the failed step",
+      "caption": "Step status, errors and log of the failed step"
+    },
+    {
+      "path": "assets/screenshot-setup.png",
+      "alt": "Setup form with server URL and token fields",
+      "caption": "Set up with a server URL and a token"
     }
   ]
 }
