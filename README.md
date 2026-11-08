@@ -8,7 +8,38 @@ Shows the CI status of all your [Woodpecker](https://woodpecker-ci.org) projects
 - Desktop notification when a project turns red
 - Polls every 30 s, every 10 s while a pipeline runs
 
-## Setup
+## Install
+
+Requires Orca 1.4.248 or newer.
+
+### From the Orca community catalog
+
+1. In Orca, open **Settings → Plugins**.
+2. Add the marketplace `https://github.com/stablyai/orca-community-plugins.git` (ref `main`).
+3. Search for **Woodpecker Status** and install it.
+4. Review the access it asks for and approve it.
+
+The plugin appears in the catalog once its first release tag is listed there.
+
+### From source
+
+Use this to try the plugin before it is listed, or to hack on it.
+
+```sh
+git clone https://github.com/brodesigns/orca-woodpecker-status
+cd orca-woodpecker-status
+orca plugin dev load .
+```
+
+The command prints the access the plugin asks for and a fingerprint. Approve it with:
+
+```sh
+orca plugin dev load . --approve <fingerprint>
+```
+
+You can also add the cloned folder in the Orca UI under **Settings → Plugins → Development folders**.
+
+## Configure
 
 1. Open the **Woodpecker Status** panel (rocket icon in the right sidebar).
 2. Enter your server URL, e.g. `https://ci.example.com`.
