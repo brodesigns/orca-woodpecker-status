@@ -1,0 +1,61 @@
+{
+  "manifestVersion": 2,
+  "id": "woodpecker-status",
+  "name": "Woodpecker Status",
+  "version": "0.1.0",
+  "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step.",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "woodpecker-status",
+        "title": "Woodpecker Status",
+        "icon": "rocket",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "settings": [
+      {
+        "key": "serverUrl",
+        "title": "Woodpecker URL",
+        "description": "Address of your Woodpecker instance. The token is entered in the panel and stored encrypted.",
+        "type": "string",
+        "default": "",
+        "placeholder": "https://ci.example.de"
+      }
+    ],
+    "commands": [
+      {
+        "id": "refresh",
+        "title": "Woodpecker: Refresh status"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "ci",
+        "text": "CI",
+        "icon": "rocket",
+        "tone": "neutral",
+        "tooltip": "Woodpecker-Status",
+        "command": "refresh"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "secrets:own"
+    },
+    {
+      "kind": "notifications:show"
+    }
+  ]
+}
