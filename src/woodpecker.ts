@@ -25,14 +25,59 @@ export function normalizeUrl(url: string): string {
   return url.trim().replace(/\/+$/, '')
 }
 
+const MAX_BODY_BYTES = 5 * 1024 * 1024
+const MAX_REPOS = 200
+const MAX_LOG_ENTRIES = 400
+
+/** The token is only sent over https. Plain http is allowed for localhost only. Returns an error text or null. */
+export function checkServerUrl(url: string): string | null {
+  let u: URL
+  try {
+    u = new URL(normalizeUrl(url))
+  } catch {
+    return 'Invalid server URL'
+  }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)
+  if (u.protocol === 'https:' || (u.protocol === 'http:' && local)) return null
+  return 'Server URL must use https:// (http:// is only allowed for localhost)'
+}
+
+/** Reads a response body but stops with an error once it grows past the limit */
+async function readLimited(res: Response): Promise<string> {
+  const declared = Number(res.headers.get('content-length') ?? 0)
+  if (declared > MAX_BODY_BYTES) throw new Error('Response too large')
+  if (!res.body) return ''
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel()
+      throw new Error('Response too large')
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
 async function get<T>(conn: Conn, path: string): Promise<T> {
+  const urlError = checkServerUrl(conn.url)
+  if (urlError) throw new Error(urlError)
   const res = await fetch(`${normalizeUrl(conn.url)}/api${path}`, {
     headers: { Authorization: `Bearer ${conn.token}` },
+    // Never follow redirects: the token must only ever reach the configured server
+    redirect: 'manual',
     signal: AbortSignal.timeout(15000)
   })
+  if (res.status >= 300 && res.status < 400) {
+    throw new Error('The server redirects. Enter the final https:// URL of your Woodpecker server.')
+  }
   if (res.status === 401 || res.status === 403) throw new Error('Token invalid or lacks permission')
   if (!res.ok) throw new Error(`Woodpecker answered with ${res.status}`)
-  return (await res.json()) as T
+  return JSON.parse(await readLimited(res)) as T
 }
 
 /** Runs fn for every item, at most `limit` at a time */
@@ -50,7 +95,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 }
 
 export async function fetchRepos(conn: Conn): Promise<RepoStatus[]> {
-  const repos = await get<ApiRepo[]>(conn, '/user/repos')
+  const repos = (await get<ApiRepo[]>(conn, '/user/repos')).slice(0, MAX_REPOS)
   const base = normalizeUrl(conn.url)
   return mapLimit(repos, 5, async (repo) => {
     const [last] = await get<ApiPipeline[]>(conn, `/repos/${repo.id}/pipelines?perPage=1`).catch(
@@ -109,6 +154,7 @@ export async function fetchDetail(conn: Conn, repoId: number, number: number): P
       () => [] as ApiLog[]
     )
     log = lines
+      .slice(-MAX_LOG_ENTRIES)
       .map((l) => decode(l.data))
       .join('')
       .split('\n')

@@ -86,8 +86,8 @@ async function save(): Promise<void> {
   const f = read(form)
   if (!f) return
   set(saveError, '')
-  if (!/^https?:\/\//.test(f.url.trim())) {
-    set(saveError, 'URL must start with https://')
+  if (!/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])([:/]|$))/.test(f.url.trim())) {
+    set(saveError, 'URL must start with https:// (http:// only for localhost)')
     return
   }
   if (!f.token.trim() && !f.hasToken) {

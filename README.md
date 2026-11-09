@@ -45,7 +45,7 @@ You can also add the cloned folder in the Orca UI under **Settings → Plugins �
 2. Enter your server URL, e.g. `https://ci.example.com`.
 3. Create a token in Woodpecker: profile (top right) → User settings → Personal Access Token. Paste it into the panel.
 
-The URL is a plugin setting. The token is stored encrypted in Orca's plugin secrets and never shown again. Leave the token field empty on later edits to keep the saved one.
+The URL must use `https://` (plain `http://` is only accepted for `localhost`). The URL is a plugin setting. The token is stored encrypted in Orca's plugin secrets and never shown again. Leave the token field empty on later edits to keep the saved one.
 
 ## Access this plugin asks for
 
@@ -64,10 +64,12 @@ Orca labels every plugin that runs a worker process as **Full access**, because 
 
 What this plugin does with that access:
 
-- It sends `GET` requests to the one Woodpecker server you configure, and to nothing else.
+- It sends `GET` requests to the one Woodpecker server you configure, and to nothing else. Redirects are not followed.
+- It only talks https. Plain `http://` is refused, except for `localhost`, so your token never travels unencrypted.
 - It never reads or writes files, starts programs or uses terminals.
 - It never changes anything in Woodpecker. Read-only API calls, no writes.
 - Your token stays in Orca's encrypted plugin secrets and is only sent to your own Woodpecker server.
+- Responses are size-limited (5 MB), so a broken or hostile server cannot exhaust memory.
 - No analytics, no tracking, no third-party services.
 
 The code is small (about 550 lines in `src/`, tests and demo data aside), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.

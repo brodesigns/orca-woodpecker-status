@@ -1,7 +1,7 @@
 // Worker: polls Woodpecker for the CI status and answers the panel
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { CiState } from './protocol'
-import { fetchDetail, fetchRepos, normalizeUrl, type Conn } from './woodpecker'
+import { checkServerUrl, fetchDetail, fetchRepos, normalizeUrl, type Conn } from './woodpecker'
 
 const SLOW_MS = 30_000
 const FAST_MS = 10_000
@@ -31,6 +31,9 @@ export default function activate(orca: OrcaWorkerApi): void {
   }
 
   async function notifyChanges(): Promise<void> {
+    // Forget repos that are gone, so the map cannot grow forever
+    const ids = new Set(state.repos.map((r) => r.id))
+    for (const id of seen.keys()) if (!ids.has(id)) seen.delete(id)
     for (const r of state.repos) {
       const key = `${r.number}:${r.status}`
       const prev = seen.get(r.id)
@@ -79,6 +82,8 @@ export default function activate(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('config.save', async ({ url, token }) => {
+    const urlError = checkServerUrl(url)
+    if (urlError) throw new Error(urlError)
     await orca.settings.set('serverUrl', normalizeUrl(url))
     // An empty token field keeps the stored token
     if (token.trim()) await orca.secrets.set('token', token.trim())
