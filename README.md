@@ -19,8 +19,6 @@ Requires Orca 1.4.248 or newer.
 3. Search for **Woodpecker Status** and install it.
 4. Review the access it asks for and approve it.
 
-The plugin appears in the catalog once its first release tag is listed there.
-
 ### From source
 
 Use this to try the plugin before it is listed, or to hack on it.
