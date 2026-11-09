@@ -58,6 +58,20 @@ The URL is a plugin setting. The token is stored encrypted in Orca's plugin secr
 
 The plugin only reads from Woodpecker (`GET` requests to `/api/user/repos`, `/api/repos/{id}/pipelines`, `/api/repos/{id}/logs/...`). It talks to nobody except the server you configure. No tracking.
 
+### Why does Orca show "Full access"?
+
+Orca labels every plugin that runs a worker process as **Full access**, because a worker is a Node.js process that runs with your user account's rights. Orca has no narrower level for "network only". Panels are sandboxed and cannot reach the network, so this plugin needs a worker to call the Woodpecker API.
+
+What this plugin does with that access:
+
+- It sends `GET` requests to the one Woodpecker server you configure, and to nothing else.
+- It never reads or writes files, starts programs or uses terminals.
+- It never changes anything in Woodpecker. Read-only API calls, no writes.
+- Your token stays in Orca's encrypted plugin secrets and is only sent to your own Woodpecker server.
+- No analytics, no tracking, no third-party services.
+
+The code is small (about 400 lines in `src/`), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.
+
 ## Develop
 
 ```sh
