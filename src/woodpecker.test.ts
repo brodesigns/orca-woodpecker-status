@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { checkServerUrl, fetchRepos, normalizeUrl } from './woodpecker'
+import { checkServerUrl, fetchRepos, isValidToken, normalizeUrl } from './woodpecker'
 
 test('normalizeUrl trims spaces and trailing slashes', () => {
   assert.equal(normalizeUrl(' https://ci.example.de/// '), 'https://ci.example.de')
@@ -55,4 +55,11 @@ test('oversized responses are refused', async () => {
   } finally {
     globalThis.fetch = original
   }
+})
+
+test('tokens with line breaks or spaces are refused', () => {
+  assert.equal(isValidToken('abc.DEF-123_x'), true)
+  assert.equal(isValidToken('abc\ndef'), false)
+  assert.equal(isValidToken('abc def'), false)
+  assert.equal(isValidToken(''), false)
 })

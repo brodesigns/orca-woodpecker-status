@@ -1,7 +1,7 @@
 // Worker: polls Woodpecker for the CI status and answers the panel
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { CiState } from './protocol'
-import { checkServerUrl, fetchDetail, fetchRepos, normalizeUrl, type Conn } from './woodpecker'
+import { checkServerUrl, fetchDetail, fetchRepos, isValidToken, normalizeUrl, type Conn } from './woodpecker'
 
 const SLOW_MS = 30_000
 const FAST_MS = 10_000
@@ -54,7 +54,16 @@ export default function activate(orca: OrcaWorkerApi): void {
     return { url: normalizeUrl(url), token }
   }
 
-  async function poll(): Promise<void> {
+  // Läuft schon ein Poll, wird er wiederverwendet statt einen zweiten zu starten
+  let inFlight: Promise<void> | null = null
+  function poll(): Promise<void> {
+    inFlight ??= doPoll().finally(() => {
+      inFlight = null
+    })
+    return inFlight
+  }
+
+  async function doPoll(): Promise<void> {
     clearTimeout(timer)
     const c = await conn()
     if (!c) {
@@ -82,8 +91,10 @@ export default function activate(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('config.save', async ({ url, token }) => {
+    if (typeof url !== 'string' || typeof token !== 'string') throw new Error('Invalid input')
     const urlError = checkServerUrl(url)
     if (urlError) throw new Error(urlError)
+    if (token.trim() && !isValidToken(token.trim())) throw new Error('Token contains invalid characters')
     await orca.settings.set('serverUrl', normalizeUrl(url))
     // An empty token field keeps the stored token
     if (token.trim()) await orca.secrets.set('token', token.trim())
@@ -98,6 +109,10 @@ export default function activate(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('detail.get', async ({ repoId, number }) => {
+    // Nur positive ganze Zahlen, sonst könnte der API-Pfad manipuliert werden
+    if (!Number.isSafeInteger(repoId) || repoId < 1 || !Number.isSafeInteger(number) || number < 1) {
+      throw new Error('Invalid repo or pipeline number')
+    }
     const c = await conn()
     if (!c) throw new Error('Not set up')
     return fetchDetail(c, repoId, number)

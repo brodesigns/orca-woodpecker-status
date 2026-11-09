@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "woodpecker-status",
   "name": "Woodpecker Status",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step. Read-only: talks only to your own Woodpecker server, no tracking.",
   "engines": {
     "orca": ">=1.4.248"

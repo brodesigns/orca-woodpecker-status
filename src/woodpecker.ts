@@ -25,6 +25,11 @@ export function normalizeUrl(url: string): string {
   return url.trim().replace(/\/+$/, '')
 }
 
+/** A token may only contain visible ASCII characters (no line breaks or spaces) */
+export function isValidToken(token: string): boolean {
+  return /^[\x21-\x7E]+$/.test(token)
+}
+
 const MAX_BODY_BYTES = 5 * 1024 * 1024
 const MAX_REPOS = 200
 const MAX_LOG_ENTRIES = 400
@@ -66,11 +71,14 @@ async function readLimited(res: Response): Promise<string> {
 async function get<T>(conn: Conn, path: string): Promise<T> {
   const urlError = checkServerUrl(conn.url)
   if (urlError) throw new Error(urlError)
+  // Fixed error text: the original message of fetch can contain the token
   const res = await fetch(`${normalizeUrl(conn.url)}/api${path}`, {
     headers: { Authorization: `Bearer ${conn.token}` },
     // Never follow redirects: the token must only ever reach the configured server
     redirect: 'manual',
     signal: AbortSignal.timeout(15000)
+  }).catch(() => {
+    throw new Error('Request failed (server unreachable or timed out)')
   })
   if (res.status >= 300 && res.status < 400) {
     throw new Error('The server redirects. Enter the final https:// URL of your Woodpecker server.')
