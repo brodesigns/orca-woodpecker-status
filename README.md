@@ -70,7 +70,7 @@ What this plugin does with that access:
 - Your token stays in Orca's encrypted plugin secrets and is only sent to your own Woodpecker server.
 - No analytics, no tracking, no third-party services.
 
-The code is small (about 400 lines in `src/`), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.
+The code is small (about 550 lines in `src/`, tests and demo data aside), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.
 
 ## Develop
 
