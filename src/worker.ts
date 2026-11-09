@@ -1,6 +1,7 @@
 // Worker: polls Woodpecker for the CI status and answers the panel
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { CiState } from './protocol'
+import { isLang, t, type Lang } from './i18n'
 import { checkServerUrl, fetchDetail, fetchRepos, isValidToken, normalizeUrl, type Conn } from './woodpecker'
 
 const SLOW_MS = 30_000
@@ -11,6 +12,7 @@ const BAD = new Set(['failure', 'error', 'killed'])
 export default function activate(orca: OrcaWorkerApi): void {
   let state: CiState = { configured: false, error: null, repos: [], updatedAt: 0 }
   let timer: ReturnType<typeof setTimeout> | undefined
+  let lang: Lang = 'en'
 
   // Last known pipeline per repo ("number:status"), to detect a switch to red
   const seen = new Map<number, string>()
@@ -19,14 +21,14 @@ export default function activate(orca: OrcaWorkerApi): void {
   async function updateStatusBar(): Promise<void> {
     const bad = state.repos.filter((r) => r.status && BAD.has(r.status)).length
     const run = state.repos.filter((r) => r.status && RUNNING.has(r.status)).length
-    let text = 'CI ok'
+    let text = t(lang, 'barOk')
     let tone: 'success' | 'danger' | 'warning' | 'neutral' = 'success'
-    if (!state.configured) [text, tone] = ['CI setup', 'neutral']
-    else if (state.error && !state.repos.length) [text, tone] = ['CI error', 'danger']
-    else if (bad) [text, tone] = [`CI ${bad} failed`, 'danger']
-    else if (run) [text, tone] = [`CI ${run} running`, 'warning']
+    if (!state.configured) [text, tone] = [t(lang, 'barSetup'), 'neutral']
+    else if (state.error && !state.repos.length) [text, tone] = [t(lang, 'barError'), 'danger']
+    else if (bad) [text, tone] = [t(lang, 'barFailed', { n: bad }), 'danger']
+    else if (run) [text, tone] = [t(lang, 'barRunning', { n: run }), 'warning']
     await orca.host
-      .call('statusBar.update', { id: 'ci', text, tone, tooltip: `${state.repos.length} projects` })
+      .call('statusBar.update', { id: 'ci', text, tone, tooltip: t(lang, 'nProjects', { n: state.repos.length }) })
       .catch((e) => orca.log(`statusBar failed: ${String(e)}`))
   }
 
@@ -41,7 +43,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       // The first poll and unchanged pipelines notify nothing
       if (firstPoll || prev === key || !r.status || !BAD.has(r.status)) continue
       await orca.host
-        .call('notifications.show', { title: `CI failed: ${r.name}`, body: r.message || r.branch })
+        .call('notifications.show', { title: t(lang, 'notifyFailed', { name: r.name }), body: r.message || r.branch })
         .catch((e) => orca.log(`notify failed: ${String(e)}`))
     }
     if (state.configured && !state.error) firstPoll = false
@@ -54,7 +56,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     return { url: normalizeUrl(url), token }
   }
 
-  // Läuft schon ein Poll, wird er wiederverwendet statt einen zweiten zu starten
+  // If a poll is already running, reuse it instead of starting a second one
   let inFlight: Promise<void> | null = null
   function poll(): Promise<void> {
     inFlight ??= doPoll().finally(() => {
@@ -87,7 +89,15 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('config.get', async () => {
     const url = await orca.settings.get('serverUrl')
-    return { url: typeof url === 'string' ? url : '', hasToken: !!(await orca.secrets.get('token')) }
+    return { url: typeof url === 'string' ? url : '', hasToken: !!(await orca.secrets.get('token')), lang }
+  })
+
+  orca.panels.handle('lang.set', async (input) => {
+    if (!isLang(input?.lang)) throw new Error('Invalid language')
+    lang = input.lang
+    await orca.settings.set('language', lang)
+    await updateStatusBar()
+    return { ok: true as const }
   })
 
   orca.panels.handle('config.save', async ({ url, token }) => {
@@ -109,7 +119,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('detail.get', async ({ repoId, number }) => {
-    // Nur positive ganze Zahlen, sonst könnte der API-Pfad manipuliert werden
+    // Positive integers only, otherwise the API path could be manipulated
     if (!Number.isSafeInteger(repoId) || repoId < 1 || !Number.isSafeInteger(number) || number < 1) {
       throw new Error('Invalid repo or pipeline number')
     }
@@ -123,7 +133,11 @@ export default function activate(orca: OrcaWorkerApi): void {
     return 'Refreshed'
   })
 
-  void poll()
+  void (async () => {
+    const saved = await orca.settings.get('language').catch(() => null)
+    if (isLang(saved)) lang = saved
+    await poll()
+  })()
 }
 
 export function deactivate(): void {}

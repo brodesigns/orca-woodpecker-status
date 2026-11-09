@@ -8,6 +8,8 @@ export type RepoStatus = {
   status: string | null
   number: number | null
   branch: string
+  /** Short commit hash (7 characters) of the pipeline, empty if unknown */
+  commit: string
   message: string
   event: string
   started: number
@@ -43,7 +45,8 @@ export type Detail = {
 
 declare module 'orca' {
   interface PluginRequests {
-    'config.get': { output: { url: string; hasToken: boolean } }
+    'config.get': { output: { url: string; hasToken: boolean; lang: 'en' | 'de' } }
+    'lang.set': { input: { lang: 'en' | 'de' }; output: { ok: true } }
     'config.save': { input: { url: string; token: string }; output: { ok: true } }
     'status.get': { output: CiState }
     'status.refresh': { output: CiState }

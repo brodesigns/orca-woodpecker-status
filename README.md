@@ -1,12 +1,41 @@
 # Woodpecker Status for Orca
 
-Shows the CI status of all your [Woodpecker](https://woodpecker-ci.org) projects in Orca's right sidebar.
+Shows the CI status of all your [Woodpecker](https://woodpecker-ci.org) projects in Orca's right sidebar. See which build is the newest, which one broke, and why, without leaving your editor.
 
-- All projects at a glance, failed first, then running, then the rest
-- Click a project: steps, pipeline errors, step errors and the last 30 log lines of the failed step
-- Status bar item (`CI 2 failed` / `CI 1 running` / `CI ok`), click refreshes
-- Desktop notification when a project turns red
-- Polls every 30 s, every 10 s while a pipeline runs
+![Woodpecker Status for Orca](assets/cover.png)
+
+## What you get
+
+| | |
+|---|---|
+| **Newest build first** | Projects are sorted by the time of their last build and grouped into *Last 24 hours*, *This week* and *Older*. |
+| **Build state at a glance** | Every row shows a colored dot (🔴 failed, 🟢 passed, 🟡 running, ⚪ no pipeline), the build number, commit, branch and age. |
+| **Failed builds on top** | Failed projects are also pinned in a red banner, so nothing red gets lost in a long list. |
+| **Search and filter** | Search by project, branch, commit or message. Filter by *All*, *Failed*, *Running* or *Passed*, with a counter for each. |
+| **Details on click** | Steps with their state, pipeline errors, step errors and the last 30 log lines of the failed step. |
+| **Status bar** | `CI 2 failed`, `CI 1 running` or `CI ok`. Click to refresh. |
+| **Desktop notification** | When a project turns red. |
+| **English and German** | Switch in the panel settings. It also applies to the status bar and notifications (see below). |
+| **Live** | Polls every 30 s, every 10 s while a pipeline runs. |
+| **Read-only** | Only reads from your own Woodpecker server. No tracking. |
+
+## Screenshots
+
+**Overview:** newest build first, failed builds pinned on top, search and status filter.
+
+![Project list sorted by newest build, with a failed-builds banner, search, status filter and colored status dots](assets/screenshot-overview.png)
+
+**Details:** click a project to see its steps, errors and the log of the failed step.
+
+![A failed project expanded: steps with their state, the log of the failed step and a link to Woodpecker](assets/screenshot-details.png)
+
+**English and German:** switch in the panel settings.
+
+![The same panel in German](assets/screenshot-german.png)
+
+**Setup:** language, server URL and token.
+
+![Setup form with language, server URL and token fields](assets/screenshot-setup.png)
 
 ## Install
 
@@ -42,6 +71,7 @@ You can also add the cloned folder in the Orca UI under **Settings → Plugins �
 1. Open the **Woodpecker Status** panel (rocket icon in the right sidebar).
 2. Enter your server URL, e.g. `https://ci.example.com`.
 3. Create a token in Woodpecker: profile (top right) → User settings → Personal Access Token. Paste it into the panel.
+4. Optional: choose **English** or **Deutsch** in the same settings form.
 
 The URL must use `https://` (plain `http://` is only accepted for `localhost`). The URL is a plugin setting. The token is stored encrypted in Orca's plugin secrets and never shown again. Leave the token field empty on later edits to keep the saved one.
 
@@ -50,13 +80,15 @@ The URL must use `https://` (plain `http://` is only accepted for `localhost`). 
 | Access | Why |
 |---|---|
 | Worker process (`trusted-worker`) | Calls the Woodpecker API (the panel itself has no network access in Orca) |
-| `settings:own` | Stores the server URL |
+| `settings:own` | Stores the server URL and the language |
 | `secrets:own` | Stores the token |
 | `notifications:show` | Desktop notification when a pipeline fails |
 
 The plugin only reads from Woodpecker (`GET` requests to `/api/user/repos`, `/api/repos/{id}/pipelines`, `/api/repos/{id}/logs/...`). It talks to nobody except the server you configure. No tracking.
 
 ### Why does Orca show "Full access"?
+
+![Four checkmarks: read-only requests, one server over https, no files or programs, token stays local](assets/screenshot-access.png)
 
 Orca labels every plugin that runs a worker process as **Full access**, because a worker is a Node.js process that runs with your user account's rights. Orca has no narrower level for "network only". Panels are sandboxed and cannot reach the network, so this plugin needs a worker to call the Woodpecker API.
 
@@ -70,7 +102,7 @@ What this plugin does with that access:
 - Responses are size-limited (5 MB), so a broken or hostile server cannot exhaust memory.
 - No analytics, no tracking, no third-party services.
 
-The code is small (about 550 lines in `src/`, tests and demo data aside), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.
+The code is small (about 900 lines in `src/`, tests and demo data aside), so you can read all of it before you approve. Orca pins the approval to the exact files, and an update that asks for more access has to be approved again.
 
 ## Develop
 

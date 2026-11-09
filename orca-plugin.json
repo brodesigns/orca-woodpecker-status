@@ -2,8 +2,8 @@
   "manifestVersion": 2,
   "id": "woodpecker-status",
   "name": "Woodpecker Status",
-  "version": "1.0.3",
-  "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step. Read-only: talks only to your own Woodpecker server, no tracking.",
+  "version": "1.1.0",
+  "description": "Shows the status of all your Woodpecker CI projects in the sidebar, newest build first, with search, filter, error messages and a log excerpt of the failed step. English and German. Read-only: talks only to your own Woodpecker server, no tracking.",
   "engines": {
     "orca": ">=1.4.248"
   },
@@ -28,6 +28,14 @@
         "type": "string",
         "default": "",
         "placeholder": "https://ci.example.de"
+      },
+      {
+        "key": "language",
+        "title": "Language",
+        "description": "Language of the panel, status bar and notifications: en or de. You can also change it in the panel settings.",
+        "type": "string",
+        "default": "en",
+        "placeholder": "en"
       }
     ],
     "commands": [
@@ -60,27 +68,32 @@
   ],
   "cover": {
     "path": "assets/cover.png",
-    "alt": "The Woodpecker Status panel in Orca's sidebar, showing one failed project with its steps and log, and several passing projects"
+    "alt": "The Woodpecker Status panel in Orca's sidebar: projects sorted by newest build with status dots, build number, commit and age"
   },
   "screenshots": [
     {
       "path": "assets/screenshot-overview.png",
-      "alt": "Project list with colored status dots, failed projects first",
-      "caption": "All projects at a glance"
+      "alt": "Project list sorted by newest build, with a failed-builds banner, search, status filter and colored status dots",
+      "caption": "Newest build first, failed builds pinned on top"
+    },
+    {
+      "path": "assets/screenshot-german.png",
+      "alt": "The same panel in German",
+      "caption": "English or German, also in the status bar and notifications"
     },
     {
       "path": "assets/screenshot-details.png",
-      "alt": "A failed project expanded with its steps and the log of the failed step",
-      "caption": "Step status, errors and log of the failed step"
+      "alt": "A failed project expanded: steps with their state, the log of the failed step and a link to Woodpecker",
+      "caption": "Steps, errors and the log of the failed step"
     },
     {
       "path": "assets/screenshot-setup.png",
-      "alt": "Setup form with server URL and token fields",
-      "caption": "Set up with a server URL and a token"
+      "alt": "Setup form with language, server URL and token fields",
+      "caption": "Choose English or German, then connect your server"
     },
     {
       "path": "assets/screenshot-access.png",
-      "alt": "Four checkmarks explaining what the plugin does with the Full access label: read-only requests, one server over https, no files or programs, token stays local",
+      "alt": "Four checkmarks explaining the Full access label: read-only requests, one server over https, no files or programs, token stays local",
       "caption": "Why Full access? Read-only, one server, no files, no tracking"
     }
   ]

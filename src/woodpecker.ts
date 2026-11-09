@@ -6,6 +6,7 @@ type ApiPipeline = {
   number: number
   status: string
   branch: string
+  commit?: string
   message: string
   event: string
   started: number
@@ -115,6 +116,7 @@ export async function fetchRepos(conn: Conn): Promise<RepoStatus[]> {
       status: last?.status ?? null,
       number: last?.number ?? null,
       branch: last?.branch ?? '',
+      commit: (last?.commit ?? '').slice(0, 7),
       message: (last?.message ?? '').split('\n')[0],
       event: last?.event ?? '',
       started: last?.started ?? 0,

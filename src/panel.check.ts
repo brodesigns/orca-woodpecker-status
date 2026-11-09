@@ -12,10 +12,11 @@ function repo(id: number, name: string, status: string | null, minutesAgo: numbe
     status,
     number: status ? id * 10 : null,
     branch: 'main',
+    commit: !status ? '' : (id * 7919 + 1048576).toString(16).padStart(7, '0').slice(0, 7),
     message,
     event: 'push',
-    started: now - minutesAgo * 60 - 90,
-    finished: status === 'running' ? 0 : now - minutesAgo * 60,
+    started: status ? now - minutesAgo * 60 - 90 : 0,
+    finished: status && status !== 'running' ? now - minutesAgo * 60 : 0,
     webUrl: `${BASE}/repos/${id}/pipeline/${id * 10}`
   }
 }
@@ -54,7 +55,7 @@ const detail: Detail = {
 }
 
 const requests = {
-  'config.get': { url: BASE, hasToken: true },
+  'config.get': { url: BASE, hasToken: true, lang: 'en' as const },
   'status.get': state,
   'status.refresh': state,
   'detail.get': detail
@@ -62,8 +63,9 @@ const requests = {
 
 export default defineCheck({
   overview: { requests, theme: 'dark' },
+  german: { requests: { ...requests, 'config.get': { url: BASE, hasToken: true, lang: 'de' as const } }, theme: 'dark' },
   setup: {
-    requests: { ...requests, 'config.get': { url: '', hasToken: false }, 'status.get': { ...state, configured: false, repos: [] } },
+    requests: { ...requests, 'config.get': { url: '', hasToken: false, lang: 'en' as const }, 'status.get': { ...state, configured: false, repos: [] } },
     theme: 'dark'
   }
 })
