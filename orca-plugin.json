@@ -2,8 +2,8 @@
   "manifestVersion": 2,
   "id": "woodpecker-status",
   "name": "Woodpecker Status",
-  "version": "1.0.0",
-  "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step.",
+  "version": "1.0.1",
+  "description": "Shows the status of all your Woodpecker CI projects in the sidebar, with error messages and a log excerpt of the failed step. Read-only: talks only to your own Woodpecker server, no tracking.",
   "engines": {
     "orca": ">=1.4.248"
   },
@@ -77,6 +77,11 @@
       "path": "assets/screenshot-setup.png",
       "alt": "Setup form with server URL and token fields",
       "caption": "Set up with a server URL and a token"
+    },
+    {
+      "path": "assets/screenshot-access.png",
+      "alt": "Four checkmarks explaining what the plugin does with the Full access label: read-only requests, one server, no files or programs, token stays local",
+      "caption": "Why Full access? Read-only, one server, no files, no tracking"
     }
   ]
 }
