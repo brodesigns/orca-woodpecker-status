@@ -25,6 +25,7 @@ const state: CiState = {
   configured: true,
   error: null,
   updatedAt: Date.now(),
+  truncated: false,
   repos: [
     repo(1, 'acme/web-shop', 'failure', 12, 'Update checkout flow'),
     repo(2, 'acme/api', 'running', 1, 'Add rate limiting'),
@@ -44,6 +45,7 @@ const detail: Detail = {
     { workflow: 'build', name: 'test', state: 'failure', exitCode: 1, error: '' },
     { workflow: 'build', name: 'deploy', state: 'skipped', exitCode: 0, error: '' }
   ],
+  logs: [],
   logStep: 'test',
   log: [
     ' FAIL  tests/checkout.test.ts',
@@ -53,6 +55,7 @@ const detail: Detail = {
     'Tests: 1 failed, 41 passed, 42 total'
   ].join('\n')
 }
+detail.logs = [{ step: detail.logStep, text: detail.log }]
 
 const requests = {
   'config.get': { url: BASE, hasToken: true, lang: 'en' as const },
@@ -63,6 +66,7 @@ const requests = {
 
 export default defineCheck({
   overview: { requests, theme: 'dark' },
+  details: { requests: { ...requests, 'status.get': { ...state, repos: state.repos.slice(0, 4) }, 'status.refresh': { ...state, repos: state.repos.slice(0, 4) } }, theme: 'dark' },
   german: { requests: { ...requests, 'config.get': { url: BASE, hasToken: true, lang: 'de' as const } }, theme: 'dark' },
   setup: {
     requests: { ...requests, 'config.get': { url: '', hasToken: false, lang: 'en' as const }, 'status.get': { ...state, configured: false, repos: [] } },

@@ -22,7 +22,7 @@ import {
   type PanelContext,
   type Tone
 } from 'orca'
-import type { CiState, Detail, RepoStatus } from './protocol'
+import { checkServerUrl, isBad, isRunning, type CiState, type Detail, type RepoStatus } from './protocol'
 import { errorText, isLang, t, type Key, type Lang } from './i18n'
 
 const ci = atom<CiState | null>(null)
@@ -37,14 +37,14 @@ const tr = (key: Key, vars?: Record<string, string | number>): string => t(read(
 const query = atom('query', '')
 const filter = atom('filter', 'all', { persist: 'plugin' })
 
-const RUNNING = new Set(['running', 'pending', 'started'])
-const BAD = new Set(['failure', 'error', 'killed'])
+/** Repos whose detail section is currently expanded */
+const openRepos = new Set<number>()
 
 function toneOf(status: string | null): Tone {
   if (!status) return 'neutral'
   if (status === 'success') return 'success'
-  if (BAD.has(status)) return 'danger'
-  if (RUNNING.has(status) || status === 'blocked') return 'warning'
+  if (isBad(status)) return 'danger'
+  if (isRunning(status) || status === 'blocked') return 'warning'
   return 'neutral'
 }
 
@@ -101,8 +101,8 @@ function when(unix: number): string {
 const FILTERS = ['all', 'failed', 'running', 'passed'] as const
 
 function matchesFilter(r: RepoStatus, f: string): boolean {
-  if (f === 'failed') return !!r.status && BAD.has(r.status)
-  if (f === 'running') return !!r.status && RUNNING.has(r.status)
+  if (f === 'failed') return isBad(r.status)
+  if (f === 'running') return isRunning(r.status)
   if (f === 'passed') return r.status === 'success'
   return true
 }
@@ -136,7 +136,7 @@ async function save(): Promise<void> {
   const f = read(form)
   if (!f) return
   set(saveError, '')
-  if (!/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])([:/]|$))/.test(f.url.trim())) {
+  if (checkServerUrl(f.url)) {
     set(saveError, tr('urlRule'))
     return
   }
@@ -148,6 +148,7 @@ async function save(): Promise<void> {
     await plugin.request('config.save', { url: f.url, token: f.token })
     set(form, { ...f, token: '', hasToken: true, edit: false })
     set(details, {})
+    openRepos.clear()
   } catch (err) {
     set(saveError, errorText(read(lang), err instanceof Error ? err.message : String(err)))
   }
@@ -156,16 +157,41 @@ async function save(): Promise<void> {
 async function refresh(): Promise<void> {
   set(refreshing, true)
   try {
-    set(ci, await plugin.request('status.refresh'))
+    applyState(await plugin.request('status.refresh'))
   } finally {
     set(refreshing, false)
   }
 }
 
+/** Take over a new CI state: drop stale details, reload open ones whose pipeline changed */
+function applyState(next: CiState): void {
+  const prev = new Map((read(ci)?.repos ?? []).map((r) => [r.id, r]))
+  const cache = { ...read(details) }
+  const reload: RepoStatus[] = []
+  for (const r of next.repos) {
+    const live = `${r.id}#${r.number}`
+    for (const k of Object.keys(cache)) {
+      if (k.startsWith(`${r.id}#`) && k !== live) delete cache[k]
+    }
+    const old = prev.get(r.id)
+    const changed = !!old && (old.status !== r.status || old.number !== r.number)
+    if (changed && cache[live] !== 'loading') {
+      delete cache[live]
+      if (openRepos.has(r.id)) reload.push(r)
+    }
+  }
+  set(details, cache)
+  set(ci, next)
+  for (const r of reload) void loadDetail(r)
+}
+
 async function loadDetail(r: RepoStatus): Promise<void> {
   if (r.number === null) return
   const key = `${r.id}#${r.number}`
-  if (read(details)[key]) return
+  const cached = read(details)[key]
+  if (cached === 'loading') return
+  // Finished pipelines are cached, running ones are reloaded on every expand
+  if (cached && cached !== 'error' && !isRunning(r.status)) return
   set(details, { ...read(details), [key]: 'loading' })
   try {
     const d = await plugin.request('detail.get', { repoId: r.id, number: r.number })
@@ -176,9 +202,9 @@ async function loadDetail(r: RepoStatus): Promise<void> {
 }
 
 export function setup(ctx: PanelContext): void {
-  ctx.subscriptions.push(plugin.on('status.changed', (s) => set(ci, s)))
+  ctx.subscriptions.push(plugin.on('status.changed', applyState))
   void loadConfig()
-  void plugin.request('status.get').then((s) => set(ci, s))
+  void plugin.request('status.get').then(applyState)
 }
 
 function Setup() {
@@ -255,16 +281,16 @@ function DetailView({ r }: { r: RepoStatus }) {
           {d.steps.filter((s) => s.error).map((s) => `${s.name}: ${s.error}`).join('\n')}
         </Text>
       ) : null}
-      {d.log ? (
-        <Stack gap="xs">
+      {d.logs.map((l, i) => (
+        <Stack key={i} gap="xs">
           <Text size="xs" weight="semibold">
-            {tr('logOf', { step: d.logStep })}
+            {tr('logOf', { step: l.step })}
           </Text>
           <Box scroll="both" maxHeight={240}>
-            <Code block>{d.log}</Code>
+            <Code block>{l.text}</Code>
           </Box>
         </Stack>
-      ) : null}
+      ))}
       <Link href={r.webUrl}>{tr('openIn')}</Link>
     </Stack>
   )
@@ -284,7 +310,11 @@ function RepoRow({ r }: { r: RepoStatus }) {
     <Collapsible
       title={`${DOT[toneOf(r.status)]} ${r.name}`}
       description={build.join(' · ')}
-      onChange={(open) => open && void loadDetail(r)}
+      onChange={(open) => {
+        if (open) openRepos.add(r.id)
+        else openRepos.delete(r.id)
+        if (open) void loadDetail(r)
+      }}
     >
       <Stack gap="sm">
         {r.message ? <Text size="xs">{r.message}</Text> : null}
@@ -351,6 +381,11 @@ export default function Panel() {
           <RepoRow r={r} />
         </Stack>
       ))}
+      {s.truncated ? (
+        <Text muted size="xs">
+          {tr('truncatedHint', { n: s.repos.length })}
+        </Text>
+      ) : null}
       <Text muted size="xs">
         {tr('updated', { time: new Date(s.updatedAt).toLocaleTimeString(read(lang)) })} ·{' '}
         {repos.length === all.length ? tr('nProjects', { n: all.length }) : tr('xOfY', { x: repos.length, y: all.length })}

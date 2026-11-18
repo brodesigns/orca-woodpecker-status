@@ -65,7 +65,9 @@ const en = {
   barError: 'CI error',
   barFailed: 'CI {n} failed',
   barRunning: 'CI {n} running',
-  notifyFailed: 'CI failed: {name}'
+  notifyFailed: 'CI failed: {name}',
+  notifyRecovered: 'CI fixed: {name}',
+  truncatedHint: 'Showing the first {n} projects only'
 }
 
 const de: typeof en = {
@@ -128,7 +130,9 @@ const de: typeof en = {
   barError: 'CI Fehler',
   barFailed: 'CI {n} rot',
   barRunning: 'CI {n} laufen',
-  notifyFailed: 'CI fehlgeschlagen: {name}'
+  notifyFailed: 'CI fehlgeschlagen: {name}',
+  notifyRecovered: 'CI wieder grün: {name}',
+  truncatedHint: 'Es werden nur die ersten {n} Projekte angezeigt'
 }
 
 export type Key = keyof typeof en
@@ -146,7 +150,8 @@ const ERRORS_DE: Record<string, string> = {
   'Request failed (server unreachable or timed out)': 'Anfrage fehlgeschlagen (Server nicht erreichbar oder Zeitüberschreitung)',
   'The server redirects. Enter the final https:// URL of your Woodpecker server.': 'Der Server leitet weiter. Gib die endgültige https://-URL deines Woodpecker-Servers ein.',
   'Token invalid or lacks permission': 'Token ungültig oder ohne Berechtigung',
-  'Token contains invalid characters': 'Der Token enthält ungültige Zeichen'
+  'Token contains invalid characters': 'Der Token enthält ungültige Zeichen',
+  'Invalid answer from Woodpecker': 'Ungültige Antwort von Woodpecker'
 }
 
 export function errorText(lang: Lang, message: string): string {

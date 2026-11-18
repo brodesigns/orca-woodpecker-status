@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "woodpecker-status",
   "name": "Woodpecker Status",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shows the status of all your Woodpecker CI projects in the sidebar, newest build first, with search, filter, error messages and a log excerpt of the failed step. English and German. Read-only: talks only to your own Woodpecker server, no tracking.",
   "engines": {
     "orca": ">=1.4.248"
@@ -36,6 +36,20 @@
         "type": "string",
         "default": "en",
         "placeholder": "en"
+      },
+      {
+        "key": "notifyRecovered",
+        "title": "Notify when fixed",
+        "description": "Show a notification when a project's build turns green again after a failure.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "defaultBranchOnly",
+        "title": "Default branch only",
+        "description": "Show the latest build on each project's default branch instead of the latest build on any branch.",
+        "type": "boolean",
+        "default": false
       }
     ],
     "commands": [

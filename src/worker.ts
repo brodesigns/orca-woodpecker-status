@@ -1,26 +1,55 @@
 // Worker: polls Woodpecker for the CI status and answers the panel
 import type { OrcaWorkerApi } from 'orca/worker'
-import type { CiState } from './protocol'
-import { isLang, t, type Lang } from './i18n'
-import { checkServerUrl, fetchDetail, fetchRepos, isValidToken, normalizeUrl, type Conn } from './woodpecker'
+import { checkServerUrl, isBad, isRunning, normalizeUrl, type CiState, type RepoStatus } from './protocol'
+import { isLang, t, type Key, type Lang } from './i18n'
+import { fetchDetail, fetchRepos, isValidToken, type Conn } from './woodpecker'
 
 const SLOW_MS = 30_000
 const FAST_MS = 10_000
-const RUNNING = new Set(['running', 'pending', 'started'])
-const BAD = new Set(['failure', 'error', 'killed'])
+const MAX_BACKOFF_MS = 120_000
+
+/** Next poll delay: 10 s while something runs, 30 s otherwise; after errors 30 s, 60 s, 120 s (cap) */
+export function nextInterval(errorCount: number, running: boolean): number {
+  if (errorCount > 0) return Math.min(SLOW_MS * 2 ** (errorCount - 1), MAX_BACKOFF_MS)
+  return running ? FAST_MS : SLOW_MS
+}
+
+/** What we remember per repo: the latest pipeline and the result of the last finished one */
+export type Seen = { key: string; lastDone: string | null }
+export type Change = 'failed' | 'recovered' | null
+
+/**
+ * Compares a repo with what we saw before. A repo seen for the first time (first poll or a
+ * new repo) never notifies, it only sets the baseline.
+ */
+export function evaluateChange(prev: Seen | undefined, r: Pick<RepoStatus, 'number' | 'status'>): { next: Seen; change: Change } {
+  const done = isBad(r.status) || r.status === 'success'
+  const next: Seen = { key: `${r.number}:${r.status}`, lastDone: done ? r.status : (prev?.lastDone ?? null) }
+  if (!prev || prev.key === next.key) return { next, change: null }
+  if (isBad(r.status)) return { next, change: 'failed' }
+  if (r.status === 'success' && isBad(prev.lastDone)) return { next, change: 'recovered' }
+  return { next, change: null }
+}
 
 export default function activate(orca: OrcaWorkerApi): void {
-  let state: CiState = { configured: false, error: null, repos: [], updatedAt: 0 }
+  let state: CiState = { configured: false, error: null, repos: [], updatedAt: 0, truncated: false }
   let timer: ReturnType<typeof setTimeout> | undefined
   let lang: Lang = 'en'
+  let errorCount = 0
 
-  // Last known pipeline per repo ("number:status"), to detect a switch to red
-  const seen = new Map<number, string>()
-  let firstPoll = true
+  // Last known pipeline per repo, to detect a switch to red or back to green
+  const seen = new Map<number, Seen>()
+  // Seen keys depend on this setting, so a change starts a new baseline
+  let seenBranchMode: boolean | null = null
+
+  async function boolSetting(key: string, fallback: boolean): Promise<boolean> {
+    const v = await orca.settings.get(key).catch(() => null)
+    return typeof v === 'boolean' ? v : fallback
+  }
 
   async function updateStatusBar(): Promise<void> {
-    const bad = state.repos.filter((r) => r.status && BAD.has(r.status)).length
-    const run = state.repos.filter((r) => r.status && RUNNING.has(r.status)).length
+    const bad = state.repos.filter((r) => isBad(r.status)).length
+    const run = state.repos.filter((r) => isRunning(r.status)).length
     let text = t(lang, 'barOk')
     let tone: 'success' | 'danger' | 'warning' | 'neutral' = 'success'
     if (!state.configured) [text, tone] = [t(lang, 'barSetup'), 'neutral']
@@ -32,21 +61,23 @@ export default function activate(orca: OrcaWorkerApi): void {
       .catch((e) => orca.log(`statusBar failed: ${String(e)}`))
   }
 
-  async function notifyChanges(): Promise<void> {
+  /** Only called after a successful poll; repos whose request failed keep their old baseline */
+  async function notifyChanges(failed: number[]): Promise<void> {
+    const notifyRecovered = await boolSetting('notifyRecovered', true)
     // Forget repos that are gone, so the map cannot grow forever
     const ids = new Set(state.repos.map((r) => r.id))
     for (const id of seen.keys()) if (!ids.has(id)) seen.delete(id)
+    const skip = new Set(failed)
     for (const r of state.repos) {
-      const key = `${r.number}:${r.status}`
-      const prev = seen.get(r.id)
-      seen.set(r.id, key)
-      // The first poll and unchanged pipelines notify nothing
-      if (firstPoll || prev === key || !r.status || !BAD.has(r.status)) continue
+      if (skip.has(r.id)) continue
+      const { next, change } = evaluateChange(seen.get(r.id), r)
+      seen.set(r.id, next)
+      if (!change || (change === 'recovered' && !notifyRecovered)) continue
+      const key: Key = change === 'failed' ? 'notifyFailed' : 'notifyRecovered'
       await orca.host
-        .call('notifications.show', { title: t(lang, 'notifyFailed', { name: r.name }), body: r.message || r.branch })
+        .call('notifications.show', { title: t(lang, key, { name: r.name }), body: r.message || r.branch })
         .catch((e) => orca.log(`notify failed: ${String(e)}`))
     }
-    if (state.configured && !state.error) firstPoll = false
   }
 
   async function conn(): Promise<Conn | null> {
@@ -69,22 +100,28 @@ export default function activate(orca: OrcaWorkerApi): void {
     clearTimeout(timer)
     const c = await conn()
     if (!c) {
-      state = { configured: false, error: null, repos: [], updatedAt: Date.now() }
+      state = { configured: false, error: null, repos: [], updatedAt: Date.now(), truncated: false }
+      errorCount = 0
     } else {
       try {
-        const repos = await fetchRepos(c)
-        state = { configured: true, error: null, repos, updatedAt: Date.now() }
+        const defaultBranchOnly = await boolSetting('defaultBranchOnly', false)
+        if (seenBranchMode !== defaultBranchOnly) seen.clear()
+        seenBranchMode = defaultBranchOnly
+        const res = await fetchRepos(c, { previous: state.repos, defaultBranchOnly })
+        state = { configured: true, error: null, repos: res.repos, updatedAt: Date.now(), truncated: res.truncated }
+        errorCount = 0
+        if (res.failed.length) orca.log(`pipeline request failed for ${res.failed.length} repo(s), kept last status`)
+        await notifyChanges(res.failed)
       } catch (err) {
         // Keep showing the old data, only add the error
         state = { ...state, configured: true, error: String(err instanceof Error ? err.message : err) }
+        errorCount++
         orca.log(`poll failed: ${state.error}`)
       }
     }
-    await notifyChanges()
     await updateStatusBar()
     orca.panels.post('status.changed', state)
-    const running = state.repos.some((r) => r.status && RUNNING.has(r.status))
-    timer = setTimeout(() => void poll(), running ? FAST_MS : SLOW_MS)
+    timer = setTimeout(() => void poll(), nextInterval(errorCount, state.repos.some((r) => isRunning(r.status))))
   }
 
   orca.panels.handle('config.get', async () => {
@@ -105,6 +142,12 @@ export default function activate(orca: OrcaWorkerApi): void {
     const urlError = checkServerUrl(url)
     if (urlError) throw new Error(urlError)
     if (token.trim() && !isValidToken(token.trim())) throw new Error('Token contains invalid characters')
+    const oldUrl = await orca.settings.get('serverUrl')
+    if (typeof oldUrl !== 'string' || normalizeUrl(oldUrl) !== normalizeUrl(url)) {
+      // Another server: old repo ids mean nothing there
+      state = { ...state, repos: [], truncated: false }
+      seen.clear()
+    }
     await orca.settings.set('serverUrl', normalizeUrl(url))
     // An empty token field keeps the stored token
     if (token.trim()) await orca.secrets.set('token', token.trim())

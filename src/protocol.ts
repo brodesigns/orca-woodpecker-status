@@ -1,5 +1,39 @@
-// Panel <-> worker contract, declared once
-export {}
+// Panel <-> worker contract, declared once. Also holds the small rules both sides share.
+
+/** Pipeline states that are still in progress */
+export const RUNNING_STATES: ReadonlySet<string> = new Set(['running', 'pending', 'started'])
+/** Pipeline states that count as failed */
+export const BAD_STATES: ReadonlySet<string> = new Set(['failure', 'error', 'killed'])
+
+export function isRunning(status: string | null | undefined): boolean {
+  return !!status && RUNNING_STATES.has(status)
+}
+
+export function isBad(status: string | null | undefined): boolean {
+  return !!status && BAD_STATES.has(status)
+}
+
+/** Base URL without trailing slashes */
+export function normalizeUrl(url: string): string {
+  return url.trim().replace(/\/+$/, '')
+}
+
+/** Hosts where plain http is allowed, because the token never leaves the machine */
+export function isLocalHost(hostname: string): boolean {
+  return ['localhost', '127.0.0.1', '[::1]'].includes(hostname)
+}
+
+/** The token is only sent over https. Plain http is allowed for localhost only. Returns an error text or null. */
+export function checkServerUrl(url: string): string | null {
+  let u: URL
+  try {
+    u = new URL(normalizeUrl(url))
+  } catch {
+    return 'Invalid server URL'
+  }
+  if (u.protocol === 'https:' || (u.protocol === 'http:' && isLocalHost(u.hostname))) return null
+  return 'Server URL must use https:// (http:// is only allowed for localhost)'
+}
 
 export type RepoStatus = {
   id: number
@@ -24,6 +58,8 @@ export type CiState = {
   error: string | null
   repos: RepoStatus[]
   updatedAt: number
+  /** True if the account has more active repos than the plugin shows (MAX_REPOS) */
+  truncated: boolean
 }
 
 export type StepInfo = {
@@ -38,10 +74,15 @@ export type Detail = {
   /** Pipeline-level errors (configuration, linter) */
   errors: string[]
   steps: StepInfo[]
-  /** Last log lines of the first failed step */
+  /** Last log lines of every failed step (max. 3 steps), ANSI codes removed */
+  logs: StepLog[]
+  /** Deprecated: same as logs[0].text, kept until the panel uses `logs` */
   log: string
+  /** Deprecated: same as logs[0].step */
   logStep: string
 }
+
+export type StepLog = { step: string; text: string }
 
 declare module 'orca' {
   interface PluginRequests {

@@ -1,0 +1,12 @@
+when:
+  - event: [push, pull_request]
+
+steps:
+  - name: validate
+    image: node:22
+    commands:
+      # The orca CLI is a desktop binary and not available in CI.
+      # .orca/types is gitignored, so the type check only runs if the typings exist.
+      - test -f orca-plugin.json
+      - node -e "JSON.parse(require('fs').readFileSync('orca-plugin.json','utf8'))"
+      - if [ -f .orca/types/tsconfig.json ]; then npx -y -p typescript@5 tsc --noEmit; else echo "no .orca/types, type check skipped"; fi
